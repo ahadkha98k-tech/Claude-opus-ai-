@@ -1,0 +1,48 @@
+import json
+import os
+import boto3
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+app = FastAPI(title="Claude Bedrock AI Service")
+
+bedrock_client = boto3.client(
+    service_name="bedrock-runtime",
+    region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+)
+
+
+class PromptRequest(BaseModel):
+    prompt: str
+
+
+@app.get("/")
+def home():
+    return {"status": "Online", "model": "Claude Opus 4.6 (Amazon Bedrock)"}
+
+
+@app.post("/chat")
+def chat_with_ai(request: PromptRequest):
+    try:
+        payload = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 1000,
+            "messages": [{"role": "user", "content": request.prompt}],
+        }
+
+        model_id = "anthropic.claude-opus-4-6"
+
+        response = bedrock_client.invoke_model(
+            modelId=model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(payload),
+        )
+
+        response_body = json.loads(response.get("body").read())
+        ai_reply = response_body.get("content")[0]["text"]
+
+        return {"response": ai_reply}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
